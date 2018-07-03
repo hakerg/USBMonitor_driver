@@ -326,34 +326,33 @@ int ScreenSender::calculateUnitContrast(const DrawingRegionWithPriority& region,
 
 void ScreenSender::touchSupport()
 {
-	while (target.Available() >= 4)
+	unsigned char mode = 128;
+	target.WriteData((char*)&mode, 1);
+	int16_t data[2];
+	target.Read((char*)data, 4);
+	if (data[0] == -1)
 	{
-		int16_t data[2];
-		target.Read((char*)data, 4);
-		if (data[0] == -1)
+		if (mouseClicked)
 		{
-			if (mouseClicked)
-			{
-				SendInput(1, &releaseInput, sizeof(INPUT));
-				mouseClicked = false;
-			}
+			SendInput(1, &releaseInput, sizeof(INPUT));
+			mouseClicked = false;
 		}
-		else
+	}
+	else
+	{
+		int x = -data[0];
+		int y = data[1];
+		if (x < touchXMin) touchXMin = x;
+		else if (x > touchXMax) touchXMax = x;
+		if (y < touchYMin) touchYMin = y;
+		else if (y > touchYMax) touchYMax = y;
+		moveInput.mi.dx = (x - touchXMin) * 65536 / (touchXMax - touchXMin);
+		moveInput.mi.dy = (y - touchYMin) * 65536 / (touchYMax - touchYMin);
+		SendInput(1, &moveInput, sizeof(INPUT));
+		if (!mouseClicked)
 		{
-			int x = -data[0];
-			int y = data[1];
-			if (x < touchXMin) touchXMin = x;
-			else if (x > touchXMax) touchXMax = x;
-			if (y < touchYMin) touchYMin = y;
-			else if (y > touchYMax) touchYMax = y;
-			moveInput.mi.dx = (x - touchXMin) * 65536 / (touchXMax - touchXMin);
-			moveInput.mi.dy = (y - touchYMin) * 65536 / (touchYMax - touchYMin);
-			SendInput(1, &moveInput, sizeof(INPUT));
-			if (!mouseClicked)
-			{
-				SendInput(1, &clickInput, sizeof(INPUT));
-				mouseClicked = true;
-			}
+			SendInput(1, &clickInput, sizeof(INPUT));
+			mouseClicked = true;
 		}
 	}
 }
