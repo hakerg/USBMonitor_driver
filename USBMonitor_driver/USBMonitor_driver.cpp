@@ -19,7 +19,7 @@ int main()
 	if (arduino.IsConnected())
 	{
 		Bitmap screen(320, 240);
-		ScreenSender screenSender(screen, arduino, 500);
+		ScreenSender screenSender(screen, arduino, 1000);
 		ScreenCapturer screenCapturer(screen, fps);
 		
 		sf::RenderWindow window(sf::VideoMode(screen.width * 2, screen.height * 2), "Screen / Arduino");

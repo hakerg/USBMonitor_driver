@@ -28,9 +28,11 @@ ScreenSender::ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t Mil
 		sendTimes[0][0][i] = sendTimeConstant + i * i * timeFactor[0];
 		sendTimes[0][1][i] = sendTimeConstant + i * i * timeFactor[1];
 		sendTimes[0][2][i] = sendTimeConstant + sendTimes[0][1][i];
+		sendTimes[0][3][i] = sendTimes[0][1][i];
 		sendTimes[1][0][i] = sendTimes[0][0][i];
 		sendTimes[1][1][i] = sendTimes[0][2][i];
 		sendTimes[1][2][i] = sendTimes[0][1][i];
+		sendTimes[1][3][i] = sendTimes[0][1][i];
 	}
 
 	bestRegions[0].priority = 0;
@@ -92,43 +94,15 @@ void ScreenSender::sendingFunc()
 
 		if (bestRegions[0].priority > 0)
 		{
-			DrawingRegion t = (DrawingRegion)bestRegions[0];
-			bestRegions[0] = bestRegions[1];
-			bestRegions[1].priority = 0;
-
+			timeToStartSleep = clock() + millisUntilSlowMode;
+			auto& t = bestRegions[0];
 			if (t.mode == 1 && portrait || t.mode == 2 && !portrait) changeRotation();
-			int firstCoord, secondCoord;
-			firstCoord = t.x;
-			if (portrait)
-			{
-				secondCoord = screen.height - t.y2;
-			}
-			else
-			{
-				secondCoord = t.y;
-			}
-
-			data[0] = t.mode + '0';
-			data[1] = (firstCoord & 255);
-			data[2] = firstCoord >> 8;
-			data[3] = secondCoord;
-			data[4] = t.size - 1;
-			int millis;
 			UINT16* tPtr;
 			switch (t.mode)
 			{
 			case 0:
 				arduinoScreen.fillRectangle(t);
 				*colorPtr = getU16(t.color);
-				target.WriteData(data, 7);
-				wait += sendTimes[portrait][0][t.size] - sendDelay;
-				if (wait < 0) wait = 0;
-				millis = (int)(wait - 0.5);
-				if (millis > 0)
-				{
-					Sleep(millis);
-					wait -= millis + 0.5;
-				}
 				break;
 			case 1:
 				tPtr = colorPtr;
@@ -145,7 +119,6 @@ void ScreenSender::sendingFunc()
 						++tPtr;
 					}
 				}
-				target.WriteData(data, 5 + t.size * t.size * 2);
 				break;
 			case 2:
 				tPtr = colorPtr;
@@ -162,14 +135,74 @@ void ScreenSender::sendingFunc()
 						++tPtr;
 					}
 				}
-				target.WriteData(data, 5 + t.size * t.size * 2);
+				break;
+			case 3:
+				tPtr = colorPtr;
+				if (portrait)
+				{
+					for (int x = t.x; x < t.x2; x++)
+					{
+						for (int y = t.y2 - 1; y >= t.y; y--)
+						{
+							RGBQUAD& colorRef = screen.at(x, y);
+							arduinoScreen.at(x, y) = colorRef;
+							*tPtr = getU16(colorRef);
+							++tPtr;
+						}
+					}
+				}
+				else
+				{
+					for (int y = t.y; y < t.y2; y++)
+					{
+						for (int x = t.x; x < t.x2; x++)
+						{
+							RGBQUAD& colorRef = screen.at(x, y);
+							arduinoScreen.at(x, y) = colorRef;
+							*tPtr = getU16(colorRef);
+							++tPtr;
+						}
+					}
+				}
 				break;
 			}
 
-			//std::cout << 'm' << t.mode << " s" << t.size << ' ' << t.x << 'x' << t.y;
-			//std::cout << " (" << firstCoord << 'x' << secondCoord << ')';
-			//std::cout << std::endl;
-			//Sleep(1000);
+			int firstCoord = t.x;
+			int secondCoord;
+			if (portrait)
+			{
+				secondCoord = screen.height - t.y2;
+			}
+			else
+			{
+				secondCoord = t.y;
+			}
+			data[0] = t.mode + '0';
+			data[1] = (firstCoord & 255);
+			data[2] = firstCoord >> 8;
+			data[3] = secondCoord;
+			data[4] = t.size - 1;
+			if (t.mode == 0)
+			{
+				target.WriteData(data, 7);
+				wait += sendTimes[portrait][0][t.size] - sendDelay;
+				if (wait < 0) wait = 0;
+				int millis = (int)(wait - 0.5);
+				if (millis > 0)
+				{
+					Sleep(millis);
+					wait -= millis + 0.5;
+				}
+			}
+			else
+			{
+				target.WriteData(data, 5 + t.size * t.size * 2);
+			}
+
+			//std::cout << "m" << t.mode << " s" << t.size << ", " << t.x << "x" << t.y << std::endl;
+
+			t = bestRegions[1];
+			bestRegions[1].priority = 0;
 		}
 		else if (clock() > timeToStartSleep)
 		{
@@ -182,25 +215,24 @@ void ScreenSender::sendingFunc()
 
 void ScreenSender::findingFunc()
 {
-	int mode = 0;
 	while (running)
 	{
 		DrawingRegionWithPriority n;
-		n.mode = mode;
-		mode++;
-		if (mode == 3) mode = 0;
-		const int& sizeXMultiplier = rangeSizeXMultiplier[n.mode];
-		const int& sizeYMultiplier = rangeSizeYMultiplier[n.mode];
-		n.x = rand() % screen.width / sizeXMultiplier * sizeXMultiplier;
-		n.y = rand() % screen.height / sizeYMultiplier * sizeYMultiplier;
-		if (bestRegions[0].priority > 0)
+		n.mode = rand() % 3;
+		n.x = rand() % screen.width;
+		n.y = rand() % screen.height;
+		/*if (bestRegions[0].priority > 0)
 		{
 			if (n.x >= bestRegions[0].x && n.x < bestRegions[0].x2 && n.y >= bestRegions[0].y && n.y < bestRegions[0].y2) continue;
-		}
-		if (bestRegions[1].priority > 0)
-		{
-			if (n.x >= bestRegions[1].x && n.x < bestRegions[1].x2 && n.y >= bestRegions[1].y && n.y < bestRegions[1].y2) continue;
-		}
+			if (bestRegions[1].priority > 0 && bestRegions[1].mode == n.mode)
+			{
+				if (n.x >= bestRegions[1].x && n.x < bestRegions[1].x2 && n.y >= bestRegions[1].y && n.y < bestRegions[1].y2) continue;
+			}
+		}*/
+		const int& sizeXMultiplier = regionSizeXMultiplier[n.mode];
+		const int& sizeYMultiplier = regionSizeYMultiplier[n.mode];
+		n.x = n.x / sizeXMultiplier * sizeXMultiplier;
+		n.y = n.y / sizeYMultiplier * sizeYMultiplier;
 		if (n.mode == 0) n.color = screen.at(n.x, n.y);
 		n.contrast = calculateUnitContrast(n, n.x, n.y);
 		if (n.contrast > 0)
@@ -267,7 +299,7 @@ void ScreenSender::findingFunc()
 
 			if (n.priority > bestRegions[1].priority)
 			{
-				if (n.priority > bestRegions[0].priority)
+				if (n.priority > bestRegions[0].priority && bestRegions[0].priority <= 0)
 				{
 					bestRegions[1] = bestRegions[0];
 					bestRegions[0] = n;
@@ -276,7 +308,6 @@ void ScreenSender::findingFunc()
 				{
 					bestRegions[1] = n;
 				}
-				timeToStartSleep = clock() + millisUntilSlowMode;
 			}
 		}
 		else if (clock() > timeToStartSleep) Sleep(1);
@@ -284,7 +315,7 @@ void ScreenSender::findingFunc()
 }
 
 
-unsigned char ScreenSender::reverse(unsigned char b)
+/*unsigned char ScreenSender::reverse(unsigned char b)
 {
 	b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
 	b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
@@ -300,7 +331,7 @@ uint32_t ScreenSender::reverse4(uint32_t i)
 		uint32_t(reverse(i >> 8)) << 16 |
 		uint32_t(reverse(i >> 16)) << 8 |
 		uint32_t(reverse(i >> 24));
-}
+}*/
 
 
 int ScreenSender::calculateUnitContrast(const DrawingRegionWithPriority& region, const int& x, const int& y)
@@ -319,6 +350,10 @@ int ScreenSender::calculateUnitContrast(const DrawingRegionWithPriority& region,
 				contrast(screen.at(x + 1, y), colorRef) +
 				contrast(screen.at(x + 2, y), colorRef) +
 				contrast(screen.at(x + 3, y), colorRef));
+	}
+	else if (region.mode == 3)
+	{
+		return contrast(arduinoScreen.at(x, y), colorRef);
 	}
 	else
 	{

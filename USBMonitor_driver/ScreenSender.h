@@ -27,21 +27,23 @@ private:
 	const double sendTimeConstant = 0.14;
 	const double timeFactor[2] = { 0.003, 0.042 };
 	const double sendDelay = 0.15;
-	double sendTimes[2][3][257];
+	double sendTimes[2][4][257];
 	SerialPort& target;
 	bool mouseClicked;
 	INPUT clickInput, moveInput, releaseInput;
 	int touchXMin = 0, touchXMax = 1, touchYMin = 0, touchYMax = 1;
 	volatile bool portrait = false;
-	const int rangeSizeXMultiplier[3] = { 1, 4, 1 };
-	const int rangeSizeYMultiplier[3] = { 1, 1, 4 };
+	const int regionSizeXMultiplier[4] = { 1, 4, 1, 1 };
+	const int regionSizeYMultiplier[4] = { 1, 1, 4, 1 };
 
 	void findingFunc();
 	void sendingFunc();
-	unsigned char reverse(unsigned char b);
-	uint32_t reverse4(uint32_t i);
+	//unsigned char reverse(unsigned char b);
+	//uint32_t reverse4(uint32_t i);
 	void calculatePriority(DrawingRegionWithPriority& r)
 	{
+		//auto& sendTime = sendTimes[portrait][r.mode][r.size];
+		//r.priority = r.contrast / sendTime * (100 - sendTime);
 		r.priority = r.contrast / sendTimes[portrait][r.mode][r.size];
 	}
 	int calculateUnitContrast(const DrawingRegionWithPriority& region, const int& x, const int& y);
