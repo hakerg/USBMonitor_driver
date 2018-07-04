@@ -33,8 +33,8 @@ ScreenSender::ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t Mil
 		sendTimes[1][2][i] = sendTimes[0][1][i];
 	}
 
-	bestRegion[0].priority = 0;
-	bestRegion[1].priority = 0;
+	bestRegions[0].priority = 0;
+	bestRegions[1].priority = 0;
 
 	/*sendTimes[0][1] = 0.143;
 	sendTimes[0][2] = 0.143;
@@ -90,18 +90,18 @@ void ScreenSender::sendingFunc()
 			nextTouchCheck += 100;
 		}
 
-		if (bestRegion[0].priority > 0)
+		if (bestRegions[0].priority > 0)
 		{
-			DrawingRegion t = (DrawingRegion)bestRegion[0];
-			bestRegion[0] = bestRegion[1];
-			bestRegion[1].priority = 0;
+			DrawingRegion t = (DrawingRegion)bestRegions[0];
+			bestRegions[0] = bestRegions[1];
+			bestRegions[1].priority = 0;
 
 			if (t.mode == 1 && portrait || t.mode == 2 && !portrait) changeRotation();
 			int firstCoord, secondCoord;
 			firstCoord = t.x;
 			if (portrait)
 			{
-				secondCoord = screen.height - t.y - t.size * rangeSizeYMultiplier[t.mode];
+				secondCoord = screen.height - t.y2;
 			}
 			else
 			{
@@ -132,9 +132,9 @@ void ScreenSender::sendingFunc()
 				break;
 			case 1:
 				tPtr = colorPtr;
-				for (int y = t.y; y < t.y + t.size; y++)
+				for (int y = t.y; y < t.y2; y++)
 				{
-					for (int x = t.x; x < t.x + t.size * 4; x += 4)
+					for (int x = t.x; x < t.x2; x += 4)
 					{
 						RGBQUAD& colorRef = screen.at(x, y);
 						arduinoScreen.at(x, y) = colorRef;
@@ -149,9 +149,9 @@ void ScreenSender::sendingFunc()
 				break;
 			case 2:
 				tPtr = colorPtr;
-				for (int x = t.x; x < t.x + t.size; x++)
+				for (int x = t.x; x < t.x2; x++)
 				{
-					for (int y = t.y + (t.size - 1) * 4; y >= t.y; y -= 4)
+					for (int y = t.y2 - 4; y >= t.y; y -= 4)
 					{
 						RGBQUAD& colorRef = screen.at(x, y);
 						arduinoScreen.at(x, y) = colorRef;
@@ -169,6 +169,7 @@ void ScreenSender::sendingFunc()
 			//std::cout << 'm' << t.mode << " s" << t.size << ' ' << t.x << 'x' << t.y;
 			//std::cout << " (" << firstCoord << 'x' << secondCoord << ')';
 			//std::cout << std::endl;
+			//Sleep(1000);
 		}
 		else if (clock() > timeToStartSleep)
 		{
@@ -192,13 +193,23 @@ void ScreenSender::findingFunc()
 		const int& sizeYMultiplier = rangeSizeYMultiplier[n.mode];
 		n.x = rand() % screen.width / sizeXMultiplier * sizeXMultiplier;
 		n.y = rand() % screen.height / sizeYMultiplier * sizeYMultiplier;
+		if (bestRegions[0].priority > 0)
+		{
+			if (n.x >= bestRegions[0].x && n.x < bestRegions[0].x2 && n.y >= bestRegions[0].y && n.y < bestRegions[0].y2) continue;
+		}
+		if (bestRegions[1].priority > 0)
+		{
+			if (n.x >= bestRegions[1].x && n.x < bestRegions[1].x2 && n.y >= bestRegions[1].y && n.y < bestRegions[1].y2) continue;
+		}
 		if (n.mode == 0) n.color = screen.at(n.x, n.y);
 		n.contrast = calculateUnitContrast(n, n.x, n.y);
 		if (n.contrast > 0)
 		{
 			n.size = 1;
-			int nxSize = sizeXMultiplier;
-			int nySize = sizeYMultiplier;
+			n.sizeX = sizeXMultiplier;
+			n.sizeY = sizeYMultiplier;
+			n.x2 = n.x + n.sizeX;
+			n.y2 = n.y + n.sizeY;
 			calculatePriority(n);
 			DrawingRegionWithPriority t;
 			t.mode = n.mode;
@@ -206,37 +217,37 @@ void ScreenSender::findingFunc()
 			do
 			{
 				t.size = n.size * 2;
-				int txSize = nxSize * 2;
-				int tySize = nySize * 2;
-				t.x = n.x / txSize * txSize;
-				t.y = n.y / tySize * tySize;
-				int x2 = t.x + txSize;
-				int y2 = t.y + tySize;
-				if (x2 > screen.width || y2 > screen.height)
+				t.sizeX = n.sizeX * 2;
+				t.sizeY = n.sizeY * 2;
+				t.x = n.x / t.sizeX * t.sizeX;
+				t.y = n.y / t.sizeY * t.sizeY;
+				t.x2 = t.x + t.sizeX;
+				t.y2 = t.y + t.sizeY;
+				if (t.x2 > screen.width || t.y2 > screen.height)
 				{
 					break;
 				}
 				t.contrast = n.contrast;
-				for (register int y = t.y; y < y2; y += sizeYMultiplier)
+				for (register int y = t.y; y < t.y2; y += sizeYMultiplier)
 				{
 					int xStart, xEnd;
-					if (y >= n.y && y < n.y + nySize)
+					if (y >= n.y && y < n.y2)
 					{
 						if (t.x == n.x)
 						{
-							xStart = t.x + nxSize;
-							xEnd = x2;
+							xStart = n.x2;
+							xEnd = t.x2;
 						}
 						else
 						{
 							xStart = t.x;
-							xEnd = x2 - nxSize;
+							xEnd = n.x;
 						}
 					}
 					else
 					{
 						xStart = t.x;
-						xEnd = x2;
+						xEnd = t.x2;
 					}
 					for (register int x = xStart; x < xEnd; x += sizeXMultiplier)
 					{
@@ -247,8 +258,6 @@ void ScreenSender::findingFunc()
 				if (t.priority > n.priority)
 				{
 					n = t;
-					nxSize = txSize;
-					nySize = tySize;
 				}
 				else
 				{
@@ -256,16 +265,16 @@ void ScreenSender::findingFunc()
 				}
 			} while (n.size < 256);
 
-			if (n.priority > bestRegion[1].priority)
+			if (n.priority > bestRegions[1].priority)
 			{
-				if (n.priority > bestRegion[0].priority)
+				if (n.priority > bestRegions[0].priority)
 				{
-					bestRegion[1] = bestRegion[0];
-					bestRegion[0] = n;
+					bestRegions[1] = bestRegions[0];
+					bestRegions[0] = n;
 				}
 				else
 				{
-					bestRegion[1] = n;
+					bestRegions[1] = n;
 				}
 				timeToStartSleep = clock() + millisUntilSlowMode;
 			}

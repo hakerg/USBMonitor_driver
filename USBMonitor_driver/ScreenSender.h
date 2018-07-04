@@ -20,7 +20,7 @@ private:
 	std::thread findingThread, sendingThread;
 	Bitmap arduinoScreen;
 	Bitmap& screen;
-	DrawingRegionWithPriority bestRegion[2];
+	DrawingRegionWithPriority bestRegions[2];
 	clock_t millisUntilSlowMode;
 	clock_t nextTouchCheck;
 	volatile clock_t timeToStartSleep;
