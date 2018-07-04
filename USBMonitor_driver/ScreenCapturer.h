@@ -20,5 +20,6 @@ private:
 public:
 	ScreenCapturer(Bitmap& Target, float MaxFps);
 	~ScreenCapturer();
-	static BYTE dither(BYTE value, int lowBits, int posX, int posY);
+	static BYTE dither2(BYTE value, int posX, int posY);
+	static BYTE dither3(BYTE value, int posX, int posY);
 };

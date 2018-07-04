@@ -9,10 +9,12 @@
 #include <iostream>
 #include <SFML\Graphics.hpp>
 
+#define ARDUINO_PORT L"COM4"
+
 int main()
 {
 	const float fps = 30;
-	SerialPort arduino(L"COM4", 500000);
+	SerialPort arduino(ARDUINO_PORT, 500000);
 	std::cout << arduino.IsConnected() << std::endl;
 	if (arduino.IsConnected())
 	{

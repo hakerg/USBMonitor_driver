@@ -62,26 +62,43 @@ void ScreenCapturer::lossDataTo16Bit()
 		for (register int y = 0; y < target.height; y++)
 		{
 			RGBQUAD& ref = screenData[y * target.width + x];
-			ref.rgbRed = dither(ref.rgbRed, 3, x, y);
-			ref.rgbGreen = dither(ref.rgbGreen, 2, x + 1, y);
-			ref.rgbBlue = dither(ref.rgbBlue, 3, x, y + 1);
+			ref.rgbRed = dither3(ref.rgbRed, x, y);
+			ref.rgbGreen = dither2(ref.rgbGreen, x + 1, y);
+			ref.rgbBlue = dither3(ref.rgbBlue, x, y + 1);
 		}
 	}
 }
 
 
-BYTE ScreenCapturer::dither(BYTE value, int lowBits, int posX, int posY)
+BYTE ScreenCapturer::dither2(BYTE value, int posX, int posY)
 {
-	static bool ditherThreshold[4][2][2] = { { 0, 0, 0, 0 },{ 1, 0, 0, 0 },{ 1, 0, 0, 1 },{ 1, 1, 0, 1 } };
+	static int ditherThreshold[2][2] = { 0, 2, 3, 1 };
 
-	if (ditherThreshold[(value >> (lowBits - 2)) & 3][posX & 1][posY & 1])
+	if ((value & 3) > ditherThreshold[posY & 1][posX & 1])
 	{
-		BYTE ret = ((value >> lowBits) + 1) << lowBits;
-		if (ret == 0) return value >> lowBits << lowBits;
+		BYTE ret = ((value >> 2) + 1) << 2;
+		if (ret == 0) return value >> 2 << 2;
 		else return ret;
 	}
 	else
 	{
-		return value >> lowBits << lowBits;
+		return value >> 2 << 2;
+	}
+}
+
+
+BYTE ScreenCapturer::dither3(BYTE value, int posX, int posY)
+{
+	static int ditherThreshold[2][4] = { 0, 4, 1, 5, 6, 2, 7, 3 };
+
+	if ((value & 7) > ditherThreshold[posY & 1][posX & 3])
+	{
+		BYTE ret = ((value >> 3) + 1) << 3;
+		if (ret == 0) return value >> 3 << 3;
+		else return ret;
+	}
+	else
+	{
+		return value >> 3 << 3;
 	}
 }
