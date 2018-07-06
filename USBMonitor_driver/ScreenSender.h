@@ -43,12 +43,11 @@ private:
 	void calculatePriority(DrawingRegionWithPriority& r)
 	{
 		//auto& sendTime = sendTimes[portrait][r.mode][r.size];
-		//r.priority = r.contrast / sendTime * (100 - sendTime);
+		//r.priority = r.contrast / sendTime * (50 - sendTime);
 		r.priority = r.contrast / sendTimes[portrait][r.mode][r.size];
 	}
 	int calculateUnitContrast(const DrawingRegionWithPriority& region, const int& x, const int& y);
 	void touchSupport();
-	void changeRotation();
 
 public:
 	ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t MillisUntilSlowMode);

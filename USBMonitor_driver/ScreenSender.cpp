@@ -27,7 +27,7 @@ ScreenSender::ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t Mil
 	{
 		sendTimes[0][0][i] = sendTimeConstant + i * i * timeFactor[0];
 		sendTimes[0][1][i] = sendTimeConstant + i * i * timeFactor[1];
-		sendTimes[0][2][i] = sendTimeConstant + sendTimes[0][1][i];
+		sendTimes[0][2][i] = /*sendTimeConstant + */sendTimes[0][1][i];
 		sendTimes[0][3][i] = sendTimes[0][1][i];
 		sendTimes[1][0][i] = sendTimes[0][0][i];
 		sendTimes[1][1][i] = sendTimes[0][2][i];
@@ -82,8 +82,7 @@ ScreenSender::~ScreenSender()
 void ScreenSender::sendingFunc()
 {
 	double wait = 0;
-	char* data = new char[5 + screen.size * 2];
-	UINT16* colorPtr = (UINT16*)(&data[5]);
+	char* data = new char[6 + screen.size * 2];
 	while (running)
 	{
 		if (clock() >= nextTouchCheck)
@@ -96,8 +95,26 @@ void ScreenSender::sendingFunc()
 		{
 			timeToStartSleep = clock() + millisUntilSlowMode;
 			auto& t = bestRegions[0];
-			if (t.mode == 1 && portrait || t.mode == 2 && !portrait) changeRotation();
-			UINT16* tPtr;
+			int datacount = 0;
+			if (portrait)
+			{
+				if (t.mode == 1)
+				{
+					portrait = false;
+					data[0] = 'L';
+					datacount = 1;
+				}
+			}
+			else
+			{
+				if (t.mode == 2)
+				{
+					portrait = true;
+					data[0] = 'P';
+					datacount = 1;
+				}
+			}
+			UINT16* colorPtr = (UINT16*)(&data[datacount + 5]);
 			switch (t.mode)
 			{
 			case 0:
@@ -105,7 +122,6 @@ void ScreenSender::sendingFunc()
 				*colorPtr = getU16(t.color);
 				break;
 			case 1:
-				tPtr = colorPtr;
 				for (int y = t.y; y < t.y2; y++)
 				{
 					for (int x = t.x; x < t.x2; x += 4)
@@ -115,13 +131,12 @@ void ScreenSender::sendingFunc()
 						arduinoScreen.at(x + 1, y) = colorRef;
 						arduinoScreen.at(x + 2, y) = colorRef;
 						arduinoScreen.at(x + 3, y) = colorRef;
-						*tPtr = getU16(colorRef);
-						++tPtr;
+						*colorPtr = getU16(colorRef);
+						++colorPtr;
 					}
 				}
 				break;
 			case 2:
-				tPtr = colorPtr;
 				for (int x = t.x; x < t.x2; x++)
 				{
 					for (int y = t.y2 - 4; y >= t.y; y -= 4)
@@ -131,13 +146,12 @@ void ScreenSender::sendingFunc()
 						arduinoScreen.at(x, y + 1) = colorRef;
 						arduinoScreen.at(x, y + 2) = colorRef;
 						arduinoScreen.at(x, y + 3) = colorRef;
-						*tPtr = getU16(colorRef);
-						++tPtr;
+						*colorPtr = getU16(colorRef);
+						++colorPtr;
 					}
 				}
 				break;
 			case 3:
-				tPtr = colorPtr;
 				if (portrait)
 				{
 					for (int x = t.x; x < t.x2; x++)
@@ -146,8 +160,8 @@ void ScreenSender::sendingFunc()
 						{
 							RGBQUAD& colorRef = screen.at(x, y);
 							arduinoScreen.at(x, y) = colorRef;
-							*tPtr = getU16(colorRef);
-							++tPtr;
+							*colorPtr = getU16(colorRef);
+							++colorPtr;
 						}
 					}
 				}
@@ -159,8 +173,8 @@ void ScreenSender::sendingFunc()
 						{
 							RGBQUAD& colorRef = screen.at(x, y);
 							arduinoScreen.at(x, y) = colorRef;
-							*tPtr = getU16(colorRef);
-							++tPtr;
+							*colorPtr = getU16(colorRef);
+							++colorPtr;
 						}
 					}
 				}
@@ -177,14 +191,14 @@ void ScreenSender::sendingFunc()
 			{
 				secondCoord = t.y;
 			}
-			data[0] = t.mode + '0';
-			data[1] = (firstCoord & 255);
-			data[2] = firstCoord >> 8;
-			data[3] = secondCoord;
-			data[4] = t.size - 1;
+			data[datacount] = t.mode + '0';
+			data[datacount + 1] = (firstCoord & 255);
+			data[datacount + 2] = firstCoord >> 8;
+			data[datacount + 3] = secondCoord;
+			data[datacount + 4] = t.size - 1;
 			if (t.mode == 0)
 			{
-				target.WriteData(data, 7);
+				target.WriteData(data, 7 + datacount);
 				wait += sendTimes[portrait][0][t.size] - sendDelay;
 				if (wait < 0) wait = 0;
 				int millis = (int)(wait - 0.5);
@@ -196,7 +210,7 @@ void ScreenSender::sendingFunc()
 			}
 			else
 			{
-				target.WriteData(data, 5 + t.size * t.size * 2);
+				target.WriteData(data, 5 + t.size * t.size * 2 + datacount);
 			}
 
 			//std::cout << "m" << t.mode << " s" << t.size << ", " << t.x << "x" << t.y << std::endl;
@@ -399,21 +413,4 @@ void ScreenSender::touchSupport()
 			mouseClicked = true;
 		}
 	}
-}
-
-
-void ScreenSender::changeRotation()
-{
-	unsigned char data;
-	if (portrait)
-	{
-		portrait = false;
-		data = 'L';
-	}
-	else
-	{
-		portrait = true;
-		data = 'P';
-	}
-	target.WriteData((char*)&data, 1);
 }
