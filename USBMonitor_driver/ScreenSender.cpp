@@ -27,12 +27,14 @@ ScreenSender::ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t Mil
 	{
 		sendTimes[0][0][i] = sendTimeConstant + i * i * timeFactor[0];
 		sendTimes[0][1][i] = sendTimeConstant + i * i * timeFactor[1];
-		sendTimes[0][2][i] = /*sendTimeConstant + */sendTimes[0][1][i];
-		sendTimes[0][3][i] = sendTimes[0][1][i];
+		sendTimes[0][2][i] = sendTimes[0][1][i];
+		sendTimes[0][3][i] = sendTimeConstant + i * timeFactor[1];
+		sendTimes[0][4][i] = sendTimes[0][3][i];
 		sendTimes[1][0][i] = sendTimes[0][0][i];
-		sendTimes[1][1][i] = sendTimes[0][2][i];
+		sendTimes[1][1][i] = sendTimes[0][1][i];
 		sendTimes[1][2][i] = sendTimes[0][1][i];
-		sendTimes[1][3][i] = sendTimes[0][1][i];
+		sendTimes[1][3][i] = sendTimes[0][3][i];
+		sendTimes[1][4][i] = sendTimes[0][3][i];
 	}
 
 	bestRegions[0].priority = 0;
@@ -98,7 +100,7 @@ void ScreenSender::sendingFunc()
 			int datacount = 0;
 			if (portrait)
 			{
-				if (t.mode == 1)
+				if (t.mode == 1 || t.mode == 4)
 				{
 					portrait = false;
 					data[0] = 'L';
@@ -107,7 +109,7 @@ void ScreenSender::sendingFunc()
 			}
 			else
 			{
-				if (t.mode == 2)
+				if (t.mode == 2 || t.mode == 3)
 				{
 					portrait = true;
 					data[0] = 'P';
@@ -152,31 +154,27 @@ void ScreenSender::sendingFunc()
 				}
 				break;
 			case 3:
-				if (portrait)
+				for (int x = t.x; x < t.x2; x += 2)
 				{
-					for (int x = t.x; x < t.x2; x++)
-					{
-						for (int y = t.y2 - 1; y >= t.y; y--)
-						{
-							RGBQUAD& colorRef = screen.at(x, y);
-							arduinoScreen.at(x, y) = colorRef;
-							*colorPtr = getU16(colorRef);
-							++colorPtr;
-						}
-					}
+					RGBQUAD& colorRef = screen.at(x, t.y);
+					arduinoScreen.at(x, t.y) = colorRef;
+					arduinoScreen.at(x + 1, t.y) = colorRef;
+					arduinoScreen.at(x, t.y + 1) = colorRef;
+					arduinoScreen.at(x + 1, t.y + 1) = colorRef;
+					*colorPtr = getU16(colorRef);
+					++colorPtr;
 				}
-				else
+				break;
+			case 4:
+				for (int y = t.y; y < t.y2; y += 2)
 				{
-					for (int y = t.y; y < t.y2; y++)
-					{
-						for (int x = t.x; x < t.x2; x++)
-						{
-							RGBQUAD& colorRef = screen.at(x, y);
-							arduinoScreen.at(x, y) = colorRef;
-							*colorPtr = getU16(colorRef);
-							++colorPtr;
-						}
-					}
+					RGBQUAD& colorRef = screen.at(t.x, y);
+					arduinoScreen.at(t.x, y) = colorRef;
+					arduinoScreen.at(t.x + 1, y) = colorRef;
+					arduinoScreen.at(t.x, y + 1) = colorRef;
+					arduinoScreen.at(t.x + 1, y + 1) = colorRef;
+					*colorPtr = getU16(colorRef);
+					++colorPtr;
 				}
 				break;
 			}
@@ -208,6 +206,10 @@ void ScreenSender::sendingFunc()
 					wait -= millis + 0.5;
 				}
 			}
+			else if (t.mode >= 3)
+			{
+				target.WriteData(data, 5 + t.size * 2 + datacount);
+			}
 			else
 			{
 				target.WriteData(data, 5 + t.size * t.size * 2 + datacount);
@@ -232,7 +234,7 @@ void ScreenSender::findingFunc()
 	while (running)
 	{
 		DrawingRegionWithPriority n;
-		n.mode = rand() % 3;
+		n.mode = rand() % 5;
 		n.x = rand() % screen.width;
 		n.y = rand() % screen.height;
 		/*if (bestRegions[0].priority > 0)
@@ -263,8 +265,8 @@ void ScreenSender::findingFunc()
 			do
 			{
 				t.size = n.size * 2;
-				t.sizeX = n.sizeX * 2;
-				t.sizeY = n.sizeY * 2;
+				t.sizeX = (t.mode == 4 ? n.sizeX : n.sizeX * 2);
+				t.sizeY = (t.mode == 3 ? n.sizeY : n.sizeY * 2);
 				t.x = n.x / t.sizeX * t.sizeX;
 				t.y = n.y / t.sizeY * t.sizeY;
 				t.x2 = t.x + t.sizeX;
@@ -365,9 +367,15 @@ int ScreenSender::calculateUnitContrast(const DrawingRegionWithPriority& region,
 				contrast(screen.at(x + 2, y), colorRef) +
 				contrast(screen.at(x + 3, y), colorRef));
 	}
-	else if (region.mode == 3)
+	else if (region.mode >= 3)
 	{
-		return contrast(arduinoScreen.at(x, y), colorRef);
+		return contrast(colorRef, arduinoScreen.at(x, y)) +
+			contrast(arduinoScreen.at(x + 1, y), colorRef) +
+			contrast(arduinoScreen.at(x, y + 1), colorRef) +
+			contrast(arduinoScreen.at(x + 1, y + 1), colorRef) - 2 * (
+				contrast(screen.at(x + 1, y), colorRef) +
+				contrast(screen.at(x, y + 1), colorRef) +
+				contrast(screen.at(x + 1, y + 1), colorRef));
 	}
 	else
 	{

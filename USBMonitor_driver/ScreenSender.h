@@ -27,14 +27,14 @@ private:
 	const double sendTimeConstant = 0.14;
 	const double timeFactor[2] = { 0.003, 0.042 };
 	const double sendDelay = 0.15;
-	double sendTimes[2][4][257];
+	double sendTimes[2][5][257];
 	SerialPort& target;
 	bool mouseClicked;
 	INPUT clickInput, moveInput, releaseInput;
 	int touchXMin = 0, touchXMax = 1, touchYMin = 0, touchYMax = 1;
 	volatile bool portrait = false;
-	const int regionSizeXMultiplier[4] = { 1, 4, 1, 1 };
-	const int regionSizeYMultiplier[4] = { 1, 1, 4, 1 };
+	const int regionSizeXMultiplier[5] = { 1, 4, 1, 2, 2 };
+	const int regionSizeYMultiplier[5] = { 1, 1, 4, 2, 2 };
 
 	void findingFunc();
 	void sendingFunc();
