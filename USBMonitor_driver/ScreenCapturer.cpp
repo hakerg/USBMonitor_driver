@@ -3,7 +3,7 @@
 #include <iostream>
 
 
-ScreenCapturer::ScreenCapturer(Bitmap& Target, float MaxFps) : target(Target)
+ScreenCapturer::ScreenCapturer(Bitmap& Target, float MaxFps, void(*onScreenCaptured)(void*), void* onScreenCapturedData) : target(Target)
 {
 	frameTime = (clock_t)ceil(1000.0 / MaxFps);
 	hDesktopDC = GetDC(NULL);
@@ -19,7 +19,7 @@ ScreenCapturer::ScreenCapturer(Bitmap& Target, float MaxFps) : target(Target)
 	SelectObject(hMyDC, hBitmap);
 	SetStretchBltMode(hMyDC, HALFTONE);
 	screenData = new RGBQUAD[target.size];
-	capturingThread = std::thread(&ScreenCapturer::captureFunc, this);
+	capturingThread = std::thread(&ScreenCapturer::captureFunc, this, onScreenCaptured, onScreenCapturedData);
 }
 
 
@@ -34,7 +34,7 @@ ScreenCapturer::~ScreenCapturer()
 }
 
 
-void ScreenCapturer::captureFunc()
+void ScreenCapturer::captureFunc(void(*onScreenCaptured)(void*), void* data)
 {
 	while (running)
 	{
@@ -44,6 +44,8 @@ void ScreenCapturer::captureFunc()
 		GetDIBits(hMyDC, hBitmap, 0, target.height, screenData, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 		lossDataTo16Bit();
 		target.swapDataPointers(screenData);
+
+		if (onScreenCaptured) onScreenCaptured(data);
 
 		clock_t finish = clock();
 		clock_t workingTime = finish - start;

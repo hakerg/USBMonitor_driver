@@ -20,7 +20,7 @@ int main()
 	{
 		Bitmap screen(320, 240);
 		ScreenSender screenSender(screen, arduino, 1000);
-		ScreenCapturer screenCapturer(screen, fps);
+		ScreenCapturer screenCapturer(screen, fps, ScreenSender::screenCaptured, &screenSender);
 		
 		sf::RenderWindow window(sf::VideoMode(screen.width * 2, screen.height * 2), "Screen / Arduino");
 		bool active = true;

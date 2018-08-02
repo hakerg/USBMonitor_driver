@@ -14,11 +14,11 @@ private:
 	BITMAPINFO bi;
 	RGBQUAD* screenData;
 
-	void captureFunc();
+	void captureFunc(void(*onScreenCaptured)(void*), void* data);
 	void lossDataTo16Bit();
 
 public:
-	ScreenCapturer(Bitmap& Target, float MaxFps);
+	ScreenCapturer(Bitmap& Target, float MaxFps, void(*onScreenCaptured)(void*) = NULL, void* onScreenCapturedData = NULL);
 	~ScreenCapturer();
 	static BYTE dither2(BYTE value, int posX, int posY);
 	static BYTE dither3(BYTE value, int posX, int posY);

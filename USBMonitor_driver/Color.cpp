@@ -11,5 +11,7 @@ uint16_t getU16(RGBQUAD c)
 
 int contrast(RGBQUAD c1, RGBQUAD c2)
 {
-	return abs(c1.rgbRed - c2.rgbRed) + abs(c1.rgbGreen - c2.rgbGreen) + abs(c1.rgbBlue - c2.rgbBlue);
+	int result = abs(c1.rgbRed - c2.rgbRed) + abs(c1.rgbGreen - c2.rgbGreen) + abs(c1.rgbBlue - c2.rgbBlue);
+	//return abs(c1.rgbRed - c2.rgbRed) + abs(c1.rgbGreen - c2.rgbGreen) + abs(c1.rgbBlue - c2.rgbBlue);
+	return result * result;
 }

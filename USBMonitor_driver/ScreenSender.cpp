@@ -68,6 +68,8 @@ ScreenSender::ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t Mil
 	releaseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
 	nextTouchCheck = clock();
 
+	contrastData = new int[screen.size];
+
 	findingThread = std::thread(&ScreenSender::findingFunc, this);
 	sendingThread = std::thread(&ScreenSender::sendingFunc, this);
 }
@@ -78,6 +80,7 @@ ScreenSender::~ScreenSender()
 	running = false;
 	findingThread.join();
 	sendingThread.join();
+	delete[] contrastData;
 }
 
 
@@ -234,7 +237,6 @@ void ScreenSender::findingFunc()
 	while (running)
 	{
 		DrawingRegionWithPriority n;
-		n.mode = rand() % 5;
 		n.x = rand() % screen.width;
 		n.y = rand() % screen.height;
 		/*if (bestRegions[0].priority > 0)
@@ -245,14 +247,22 @@ void ScreenSender::findingFunc()
 				if (n.x >= bestRegions[1].x && n.x < bestRegions[1].x2 && n.y >= bestRegions[1].y && n.y < bestRegions[1].y2) continue;
 			}
 		}*/
-		const int& sizeXMultiplier = regionSizeXMultiplier[n.mode];
-		const int& sizeYMultiplier = regionSizeYMultiplier[n.mode];
-		n.x = n.x / sizeXMultiplier * sizeXMultiplier;
-		n.y = n.y / sizeYMultiplier * sizeYMultiplier;
-		if (n.mode == 0) n.color = screen.at(n.x, n.y);
-		n.contrast = calculateUnitContrast(n, n.x, n.y);
-		if (n.contrast > 0)
+		if (contrastData[n.y * screen.width + n.x])
 		{
+			n.mode = modes[rand() % modes.size()];
+			const int& sizeXMultiplier = regionSizeXMultiplier[n.mode];
+			const int& sizeYMultiplier = regionSizeYMultiplier[n.mode];
+			n.x = n.x / sizeXMultiplier * sizeXMultiplier;
+			n.y = n.y / sizeYMultiplier * sizeYMultiplier;
+			if (n.mode == 0)
+			{
+				n.color = screen.at(n.x, n.y);
+				n.contrast = contrastData[n.y * screen.width + n.x];
+			}
+			else
+			{
+				n.contrast = calculateUnitContrast(n, n.x, n.y);
+			}
 			n.size = 1;
 			n.sizeX = sizeXMultiplier;
 			n.sizeY = sizeYMultiplier;
@@ -355,34 +365,34 @@ int ScreenSender::calculateUnitContrast(const DrawingRegionWithPriority& region,
 	RGBQUAD& colorRef = screen.at(x, y);
 	if (region.mode == 0)
 	{
-		return contrast(arduinoScreen.at(x, y), region.color) - 2 * contrast(colorRef, region.color);
+		return contrast(arduinoScreen.at(x, y), region.color) - 4 * contrast(colorRef, region.color);
 	}
 	else if (region.mode == 1)
 	{
-		return contrast(colorRef, arduinoScreen.at(x, y)) +
+		return contrastData[y * screen.width + x] +
 			contrast(arduinoScreen.at(x + 1, y), colorRef) +
 			contrast(arduinoScreen.at(x + 2, y), colorRef) +
-			contrast(arduinoScreen.at(x + 3, y), colorRef) - 2 * (
+			contrast(arduinoScreen.at(x + 3, y), colorRef) - 4 * (
 				contrast(screen.at(x + 1, y), colorRef) +
 				contrast(screen.at(x + 2, y), colorRef) +
 				contrast(screen.at(x + 3, y), colorRef));
 	}
 	else if (region.mode >= 3)
 	{
-		return contrast(colorRef, arduinoScreen.at(x, y)) +
+		return contrastData[y * screen.width + x] +
 			contrast(arduinoScreen.at(x + 1, y), colorRef) +
 			contrast(arduinoScreen.at(x, y + 1), colorRef) +
-			contrast(arduinoScreen.at(x + 1, y + 1), colorRef) - 2 * (
+			contrast(arduinoScreen.at(x + 1, y + 1), colorRef) - 4 * (
 				contrast(screen.at(x + 1, y), colorRef) +
 				contrast(screen.at(x, y + 1), colorRef) +
 				contrast(screen.at(x + 1, y + 1), colorRef));
 	}
 	else
 	{
-		return contrast(colorRef, arduinoScreen.at(x, y)) +
+		return contrastData[y * screen.width + x] +
 			contrast(arduinoScreen.at(x, y + 1), colorRef) +
 			contrast(arduinoScreen.at(x, y + 2), colorRef) +
-			contrast(arduinoScreen.at(x, y + 3), colorRef) - 2 * (
+			contrast(arduinoScreen.at(x, y + 3), colorRef) - 4 * (
 				contrast(screen.at(x, y + 1), colorRef) +
 				contrast(screen.at(x, y + 2), colorRef) +
 				contrast(screen.at(x, y + 3), colorRef));
@@ -420,5 +430,16 @@ void ScreenSender::touchSupport()
 			SendInput(1, &clickInput, sizeof(INPUT));
 			mouseClicked = true;
 		}
+	}
+}
+
+
+void ScreenSender::screenCaptured(void* obj)
+{
+	ScreenSender& ss = *(ScreenSender*)obj;
+	ss.bestRegions[1].priority = 0;
+	for (int i = 0; i < ss.screen.size; i++)
+	{
+		ss.contrastData[i] = contrast(ss.arduinoScreen.getData()[i], ss.screen.getData()[i]);
 	}
 }

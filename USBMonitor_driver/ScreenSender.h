@@ -4,6 +4,7 @@
 #include "DrawingRegion.h"
 #include <thread>
 #include <map>
+#include <array>
 
 
 class DrawingRegionWithPriority : public DrawingRegion
@@ -35,6 +36,7 @@ private:
 	volatile bool portrait = false;
 	const int regionSizeXMultiplier[5] = { 1, 4, 1, 2, 2 };
 	const int regionSizeYMultiplier[5] = { 1, 1, 4, 2, 2 };
+	const std::array<const int, 1> modes = { 0 };
 
 	void findingFunc();
 	void sendingFunc();
@@ -50,8 +52,11 @@ private:
 	void touchSupport();
 
 public:
+	int* contrastData;
+
 	ScreenSender(Bitmap& sourceScreen, SerialPort& Target, clock_t MillisUntilSlowMode);
 	~ScreenSender();
 	const RGBQUAD* getArduinoPixelData() { return arduinoScreen.getData(); }
+	static void screenCaptured(void* obj);
 };
 
